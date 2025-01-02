@@ -1,36 +1,44 @@
 #include "json_parser.hpp"
 
 
+void test_json_parse()
+{
+    //simple object
+    const char *json_str = "{\"name\": \"John\", \"age\": 30, \"car\": null}";
+    auto json = sp::parse_json(json_str);
+    std::cout << sp::to_string(json, false, 2) << std::endl;
+    //simple array
+    json_str = "[\"apple\", \"banana\", \"cherry\", 1, 2, true, false, null]";
+    json = sp::parse_json(json_str);
+    std::cout << sp::to_string(json, false, 2) << std::endl;
+    //nested object
+    json_str = "{\"name\": \"John\", \"age\": 30, \"car\": {\"make\": \"Toyota\", \"model\": \"Corolla\"}}";
+    json = sp::parse_json(json_str);
+    std::cout << sp::to_string(json, false, 2) << std::endl;
+    //nested array
+    json_str = "[\"apple\", \"banana\", \"cherry\", [\"apple\", \"banana\", \"cherry\"], 1, 2, true, false, null]";
+    json = sp::parse_json(json_str);
+    std::cout << sp::to_string(json, false, 2) << std::endl;
+    //complex object
+    json_str = "{\"name\": \"John\", \"age\": 30, \"car\": {\"make\": \"Toyota\", \"model\": \"Corolla\"}, \"children\": [{\"name\": \"Alice\", \"age\": 5}, {\"name\": \"Bob\", \"age\": 7}]}";
+    json = sp::parse_json(json_str);
+    std::cout << sp::to_string(json, false, 2) << std::endl;
+    //complex array
+    json_str = "[\"apple\", \"banana\", \"cherry\", [\"apple\", \"banana\", \"cherry\"], 1, 2, true, false, null, [{\"name\": \"Alice\", \"age\": 5}, {\"name\": \"Bob\", \"age\": 7}]]";
+    json = sp::parse_json(json_str);
+    std::cout << sp::to_string(json, false, 2) << std::endl;
+    //empty object
+    json_str = "{}";
+    json = sp::parse_json(json_str);
+    std::cout << sp::to_string(json, false, 2) << std::endl;
+    //highly complex json
+    json_str = "{\"name\": \"John\", \"age\": 30, \"car\": {\"make\": \"Toyota\", \"model\": \"Corolla\"}, \"children\": [{\"name\": \"Alice\", \"age\": 5}, {\"name\": \"Bob\", \"age\": 7}], \"friends\": [{\"name\": \"Alice\", \"age\": 5, \"children\": [{\"name\": \"Alice\", \"age\": 5}, {\"name\": \"Bob\", \"age\": 7}]}, {\"name\": \"Bob\", \"age\": 7, \"children\": [{\"name\": \"Alice\", \"age\": 5}, {\"name\": \"Bob\", \"age\": 7}]}]}";
+    json = sp::parse_json(json_str);
+    std::cout << sp::to_string(json, false, 2) << std::endl;
+}
+
+
 int main(int argc, char ** argv)
 {
-	//demo creating an json object
-	sp::JSONNode json = sp::JSONNode::JSONObjectNode();
-	json.pushProperty("string", sp::JSONNode::JSONStringNode("value1"));
-	
-	//json object property indexed access
-	// this returns the sp::JSONNode referance according to the key
-	json["number"] = sp::JSONNode::JSONNumberNode(100);
-	json["boolean"] = sp::JSONNode::JSONBooleanNode(true);
-	json["object"] = sp::JSONNode::JSONObjectNode();
-	json["object"]["array"] = sp::JSONNode::JSONArrayNode();
-	json["object"]["nested"] = sp::JSONNode::JSONObjectNode();
-	json["object"]["nested"]["key"] = sp::JSONNode::JSONStringNode("value");
-	for (int i = 0; i < 4; i++)
-	{
-		json["object"]["array"].push(sp::JSONNode::JSONNumberNode(i));
-	}
-
-	std::cout << "number: " << json["object"]["array"][1].getInt() << std::endl;
-	
-	//json array item indexed access 
-	json["object"]["array"][3] = sp::JSONNode::JSONNumberNode(2.2);
-
-	// demo getting the string version of the json object
-	std::cout << json.toString() << std::endl;
-
-	//demo reading json from file	
-	json.readFromFile("demo.json");
-
-	//demo logging a json
-	sp::PrintJSONNode(json["keyObject"]);
+	test_json_parse();
 }
