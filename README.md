@@ -1,6 +1,7 @@
 # JSON Parser and Serializer Documentation
 `json_parser.hpp` is a simple header-only library to work with jsons in c++.
 
+
 ## Overview
 
 The JSON parser supports the following JSON types:
@@ -79,13 +80,35 @@ json["hobbies"] = hobbies;
 std::cout << sp::to_string(json, false, 2) << std::endl;
 ```
 
+### Accessing JSON Data
+#### Accessing Values by Key
+```cpp
+sp::json_t json = sp::parse_json("{\"name\": \"Alice\", \"age\": 25}");
+std::cout << "Name: " << json["name"].to_string() << std::endl; // Outputs: Alice
+std::cout << "Age: " << json["age"].to_int() << std::endl;   // Outputs: 25
+```
+
+#### Accessing Array Elements
+```cpp
+sp::json_t json = sp::parse_json("[\"apple\", \"banana\", \"cherry\"]");
+std::cout << "First fruit: " << json[0].to_string() << std::endl; // Outputs: apple
+std::cout << "Second fruit: " << json[1].to_string() << std::endl; // Outputs: banana
+```
+
+#### Nested Access
+```cpp
+sp::json_t json = sp::parse_json(
+    "{\"user\": {\"name\": \"Bob\", \"age\": 29}, \"active\": true}");
+std::cout << "User Name: " << json["user"]["name"].to_string() << std::endl; // Outputs: Bob
+std::cout << "User Age: " << json["user"]["age"].to_int() << std::endl;   // Outputs: 29
+std::cout << "Active: " << json["active"].to_bool() << std::endl;         // Outputs: 1
+```
+
 ### Serializing JSON
 ```cpp
 sp::json_t json = sp::parse_json("[1, true, \"test\"]");
 std::cout << sp::to_string(json, true) << std::endl; // Outputs: [1,true,"test"]
 ```
-
----
 
 ## License
 This implementation is open-source and can be used or modified freely.
