@@ -1,459 +1,448 @@
 #pragma once
-#include <string>
-#include <sstream>
-#include <fstream>
 #include <vector>
+#include <string>
 #include <iostream>
-#include <cassert>
-
-/*
-
-
-
-*/
-
-//TODO : implement error check
+#include <sstream>
 
 namespace sp
 {
 
-	const std::string JSONFIELD_TEXT_FILTER_SEQUENCE = "~iii(>,<)";
-	const std::string JSONFIELD_ARRAY_ENTRY_SEQUENCE = "~iii(>_<)";
+    enum JsonType
+    {
+        JSON_ERROR = -1,
+        JSON_NULL,
+        JSON_BOOL,
+        JSON_NUMBER,
+        JSON_STRING,
+        JSON_ARRAY,
+        JSON_OBJECT
+    };
 
-	//
-	//types:
-	//k -> key
-	//o -> object
-	//a -> array
-	//u -> unknown
-	//b -> boolean
-	//s ->string
-	//n -> number
+    struct json_t
+    {
+        JsonType type = JSON_ERROR;
+        std::vector<std::string> keys = {};
+        std::vector<json_t> values = {};
 
+        bool to_bool() const
+        {
+            if (type == JSON_BOOL)
+                return keys[0] == "true";
+            return false;
+        }
 
+        int to_int() const
+        {
+            if (type == JSON_NUMBER)
+                return std::stoi(keys[0]);
+            return 0;
+        }
 
-	class JSONNode
-	{
-	public:
-		std::string _value;
-		char _type;
-		std::vector<JSONNode> _children;
-		static JSONNode ERROR;
-		JSONNode()
-			:_value(""),
-			_type('u'),
-			_children({})
-		{
-		}
-		JSONNode(std::string value, char type = 's', std::vector<JSONNode> children = {})
-			:_value(value),
-			_type(type),
-			_children(children)
-		{
-		}
+        double to_double() const
+        {
+            if (type == JSON_NUMBER)
+                return std::stod(keys[0]);
+            return 0.0;
+        }
 
-		void readFromString(std::string str)
-		{
-			this->_value = "root";
+        std::string to_string() const
+        {
+            if (type == JSON_STRING)
+                return keys[0];
+            return "";
+        }
 
-			// read file as tokens
-			std::vector<std::string> tokens = {};
-			tokens = tokenize(str);
-	
-			// use tokens to fill tree
-			JSONNode* current = this;
-			std::vector<JSONNode*> nodeStack = {};
-			std::vector<char> typeStack = {};
-			std::string temp("");
-			char type = 'u';
-
-			for (std::string token : tokens)
-			{
-				if (token == "{")
-				{
-					current->_type = 'o';
-					JSONNode node;
-					current->_children.push_back(node);
-					nodeStack.push_back(current);
-					typeStack.push_back('o');
-					current = &(current->_children[0]);
-				}
-				else if (token == "}")
-				{
-					if (typeStack.back() == 'k')
-					{
-						current->_value = temp;
-						current->_type = type;
-						typeStack.pop_back();
-						typeStack.pop_back();
-						current = nodeStack.back();
-						nodeStack.pop_back();
-					}
-				}
-				else if (token == "[")
-				{
-					current->_type = 'a';
-					JSONNode node;
-					current->_children.push_back(node);
-					nodeStack.push_back(current);
-					typeStack.push_back('a');
-					current = &(current->_children[0]);
-				}
-				else if ( token == "]")
-				{
-						if (current->_type != 'a' && current->_type != 'o')
-						{
-							current->_value = temp;
-							current->_type = type;
-						}
-						typeStack.pop_back();
-						typeStack.pop_back();
-						nodeStack.pop_back();
-						current = nodeStack.back();
-						if (current->_type == 'a')
-						{
-							nodeStack.pop_back();
-							current = nodeStack.back();
-						}
-
-				}
-				else if (token == ":")
-				{
-					current->_type = 'k';
-					current->_value = temp;
-					JSONNode node;
-					current->_children.push_back(node);
-					typeStack.push_back('k');
-					current = &(current->_children.back());
-				}
-				else if (token == ",")
-				{
-					if (typeStack.back() == 'k')
-					{
-					
-						if (current->_type != 'a' && current->_type != 'o')
-						{
-							current->_value = temp;
-							current->_type = type;
-						}
-						current = nodeStack.back();
-						typeStack.pop_back();
-						JSONNode node;
-						current->_children.push_back(node);
-						current = &(current->_children.back());
-					}
-					else if (typeStack.back() == 'o')
-					{
-						current = nodeStack.back();
-						JSONNode node;
-						current->_children.push_back(node);
-						current = &(current->_children.back());
-					}
-					else if (typeStack.back() == 'a')
-					{
-						
-						if (current->_type != 'a' && current->_type != 'o')
-						{
-							current->_value = temp;
-							current->_type = type;
-						}
-						current = nodeStack.back();
-						JSONNode node;
-						current->_children.push_back(node);
-						current = &(current->_children.back());
-					}
-				}
-				else
-				{
-					type = 'u';
-					if (token.length() > JSONFIELD_TEXT_FILTER_SEQUENCE.length())
-					{
-						uint32_t len = JSONFIELD_TEXT_FILTER_SEQUENCE.length();
-						if (token.substr(0, len) == JSONFIELD_TEXT_FILTER_SEQUENCE)
-						{
-							type = 's';
-							token = token.substr(len);
-						}
-					}
-					else if (type == 'u' && (token == "true" || token == "false"))
-						type = 'b';
-					else
-						type = 'n';
-
-					temp = token;
-				}
-			}
-		}
+        json_t &operator[](const std::string &key)
+        {
+            if (type == JSON_OBJECT)
+            {
+                for (size_t i = 0; i < keys.size(); ++i)
+                {
+                    if (keys[i] == key)
+                        return values[i];
+                }
+            }
+            keys.push_back(key);
+            values.push_back(json_t());
+            return values.back();
+        }
 
 
-		void readFromFile(std::string filepath)
-		{
-			std::ifstream file(filepath);
-			if (file.is_open())
-			{
-				std::stringstream ss;
-				ss << file.rdbuf();
-				readFromString(ss.str());
-			}
-		}
+        json_t &operator[](uint32_t index)
+        {
+            if (type == JSON_ARRAY && index < values.size())
+                return values[index];
+            keys.push_back(std::to_string(index));
+            values.push_back(json_t());
+            return values.back();
+        }
+
+        size_t size() const { return values.size(); }
 
 
-		//convert JSONNode to jsonString
-		std::string toString()
-		{
-			std::string output = "";
-			if (this->_type == 'k')
-			{
-				output += "\"";
-				output += this->_value;
-				output += "\":";
-				output += this->_children[0].toString();
-				output += ",";
-			}
-			else if (this->_type == 'o')
-			{
-				output += "{";
-				for (JSONNode& prop : this->_children)
-				{
-					output += prop.toString();
-				}
-				output.pop_back(); // remove last ","
-				output += "}";
-			}
-			else if (this->_type == 'a')
-			{
-				output += "[";
-				for (JSONNode& item : this->_children)
-				{
-					output += item.toString();
-					output += ",";
-				}
-				output.pop_back(); // remove last ","
-				output += "]";
-			}
-			else if (this->_type == 's')
-			{
-				output += "\"";
-				output += this->_value;
-				output += "\"";
-			}
-			else if (this->_type == 'n' || this->_type == 'b')
-			{
-				output += this->_value;
-			}
+        json_t & operator=(const json_t &other)
+        {
+            type = other.type;
+            keys = other.keys;
+            values = other.values;
+            return *this;
+        }
+        
+        json_t& operator=(const std::string & str)
+        {
+            type = JSON_STRING;
+            keys.push_back(str);
+            return *this;
+        }
 
-			return output;
+        json_t& operator=(const char * str)
+        {
+            type = JSON_STRING;
+            keys.push_back(str);
+            return *this;
+        }
 
-		}
+        json_t& operator=(const int & num)
+        {
+            type = JSON_NUMBER;
+            keys.push_back(std::to_string(num));
+            return *this;
+        }
 
-		//json object node random access
-		JSONNode& operator [](std::string key)
-		{
-			//only objects are allowed
-			assert(this->_type == 'o');
-			int i;
+        json_t& operator=(const double & num)
+        {
+            type = JSON_NUMBER;
+            keys.push_back(std::to_string(num));
+            return *this;
+        }
 
-			for (i = 0; i < _children.size(); i++)
-			{
-				if (this->_children[i]._value == key)
-				{
-					//std::cout << "index found" << std::endl;
-					break;
-				}
-			}
-			if (i == _children.size())
-			{
-				JSONNode node(key, 'k', {JSONNode()});
-				this->_children.push_back(node);
-				return this->_children.back()._children[0];
-			}
-			return _children[i]._children[0];
-		}
-		
+        json_t& operator=(const bool & b)
+        {
+            type = JSON_BOOL;
+            keys.push_back(b ? "true" : "false");
+            return *this;
+        }
 
-		//json arraynode random access 
-		JSONNode& operator [](uint32_t index)
-		{
-			//only arrays are allowed
-			assert(this->_type == 'a');
-			if(index < this->_children.size())
-				return this->_children[index];
-			else
-			{
-				return ERROR;
-			}
-		}
-		
-		std::string get()
-		{
-			return this->_value;
-		}
-		int getInt()
-		{
-			return std::stoi(this->_value);
-		}
-		float getFloat()
-		{
-			return std::stof(this->_value);
-		}
-		bool getBool()
-		{
-			return (this->_value == "false" ? false : true);
-		}
+        void push_back(const json_t &json)
+        {
+            if (type == JSON_ARRAY)
+                values.push_back(json);
+        }
+
+        void push_back(const std::string &str)
+        {
+            if (type == JSON_ARRAY)
+            {
+                json_t json;
+                json.type = JSON_STRING;
+                json.keys.push_back(str);
+                values.push_back(json);
+            }
+        }
+
+        void push_back(const char *str)
+        {
+            if (type == JSON_ARRAY)
+            {
+                json_t json;
+                json.type = JSON_STRING;
+                json.keys.push_back(str);
+                values.push_back(json);
+            }
+        }
 
 
-		void push(JSONNode node)
-		{
-			assert(this->_type == 'a');
-			this->_children.push_back(node);
-		}
+    };
 
-		void pushProperty(std::string key, JSONNode node)
-		{
-			assert(this->_type == 'o');
-			(*this)[key] = node;
-		}
+    static json_t _parse_json(char *&cptr);
 
-		static JSONNode JSONObjectNode()
-		{
-			JSONNode node("", 'o');
-			return node;
-		}
+    static void skip_ws(char **cptr)
+    {
+        auto c = *cptr;
+        while (*c == ' ' || *c == '\t' || *c == '\n' || *c == '\r')
+        {
+            c++;
+        }
+        *cptr = c;
+    }
 
-		static JSONNode JSONArrayNode()
-		{
-			JSONNode node("", 'a');
-			return node;
-		}
-		static JSONNode JSONStringNode(std::string str)
-		{
-			JSONNode node(str, 's');
-			return node;
-		}
-		static JSONNode JSONNumberNode(float num)
-		{
-			JSONNode node(std::to_string(num), 'n');
-			return node;
-		}
-		static JSONNode JSONBooleanNode(bool boolean)
-		{
-			if (boolean)
-				return JSONNode("true", 'b');
-			else
-				return JSONNode("false", 'b');
-		}
+    static void _read_string(char **cptr, std::string &str)
+    {
+        char *c = *cptr + 1;
+        std::string result;
+        while (*c != '"' && *c != '\0')
+        {
+            if (*c == '\\')
+            {
+                c++;
+                switch (*c)
+                {
+                case '"':
+                case '\\':
+                case '/':
+                    result.push_back(*c);
+                    break;
+                case 'b':
+                    result.push_back('\b');
+                    break;
+                case 'f':
+                    result.push_back('\f');
+                    break;
+                case 'n':
+                    result.push_back('\n');
+                    break;
+                case 'r':
+                    result.push_back('\r');
+                    break;
+                case 't':
+                    result.push_back('\t');
+                    break;
+                default:
+                    result.push_back(*c);
+                    break;
+                }
+            }
+            else
+            {
+                result.push_back(*c);
+            }
+            c++;
+        }
+        if (*c == '"')
+            c++;
+        *cptr = c;
+        str = result;
+    }
 
-	private:
+    static void _read_number(char **cptr, std::string &str)
+    {
+        char *c = *cptr;
+        char *start = c;
+        if (*c == '-')
+            c++;
+        while (*c >= '0' && *c <= '9')
+            c++;
+        if (*c == '.')
+        {
+            c++;
+            while (*c >= '0' && *c <= '9')
+                c++;
+        }
+        if (*c == 'e' || *c == 'E')
+        {
+            c++;
+            if (*c == '+' || *c == '-')
+                c++;
+            while (*c >= '0' && *c <= '9')
+                c++;
+        }
+        *cptr = c;
+        str.assign(start, c);
+    }
 
-		std::vector<std::string> tokenize(std::string str)
-		{
-			std::vector<std::string> tokens = {};
-			bool pushWhiteSpace = false;
-			std::string temp("");
-			for (char c : str)
-			{
-				switch (c)
-				{
-				case '[':
-				{
-					tokens.push_back("[");
-				}break;
-				case ']':
-				{
-					if (temp != "") tokens.push_back(temp);
-					tokens.push_back("]");
-				}break;
-				case '{':
-				{
-					tokens.push_back("{");
-				}break;
-				case '}':
-				{
-					if (temp != "") tokens.push_back(temp);
-					tokens.push_back("}");
-				}break;
-				case ':':
-				{
-					if (temp != "") tokens.push_back(temp);
-					tokens.push_back(":");
-					temp = "";
-				}break;
-				case ',':
-				{
-					if (temp != "") tokens.push_back(temp);
-					tokens.push_back(",");
-					temp = "";
-				}break;
-				default:
-				{
-					if (c == '\n') continue;
-					if (c == '\"')
-					{
-						pushWhiteSpace = !pushWhiteSpace;
-						if (pushWhiteSpace) temp += JSONFIELD_TEXT_FILTER_SEQUENCE;
-						continue;
-					}
-					if ((!pushWhiteSpace) && c == ' ') continue;
-					temp += c;
-				}break;
-				}
-			}
-			return tokens;
-		}
+    static void _read_object(char **cptr, json_t &json)
+    {
+        json.type = JSON_OBJECT;
+        (*cptr)++;
+        skip_ws(cptr);
+        while (**cptr != '}' && **cptr != '\0')
+        {
+            std::string key;
+            _read_string(cptr, key);
+            json.keys.push_back(key);
 
-		std::vector<std::string> tokenizeQuery(std::string& str)
-		{
-			std::vector<std::string> tokens;
-			std::string token = "";
-			bool pushLast = true;
-			for (auto c : str)
-			{
-				if (c == '.')
-				{
-					tokens.push_back(token);
-					token = "";
-					pushLast = true;
-				}
-				else if (c == '[')
-				{
-					if (token.length() > 0)
-						tokens.push_back(token);
-					tokens.push_back(JSONFIELD_ARRAY_ENTRY_SEQUENCE);
-					token = "";
-				
-				}
-				else if (c == ']')
-				{
-					tokens.push_back(token);
-					pushLast = false;
-				}
-				else
-				{
-					token += c;
-				}
-			}
+            skip_ws(cptr);
+            if (**cptr != ':')
+            {
+                json.type = JSON_ERROR;
+                return;
+            }
+            (*cptr)++;
+            skip_ws(cptr);
 
-			if (token.length() > 0 && pushLast) 
-				tokens.push_back(token);
+            json.values.push_back(_parse_json(*cptr));
+            skip_ws(cptr);
 
+            if (**cptr == ',')
+                (*cptr)++;
+            skip_ws(cptr);
+        }
+        if (**cptr == '}')
+            (*cptr)++;
+    }
 
-			return tokens;
-		}
+    static void _read_array(char **cptr, json_t &json)
+    {
+        json.type = JSON_ARRAY;
+        (*cptr)++;
+        skip_ws(cptr);
+        while (**cptr != ']' && **cptr != '\0')
+        {
+            json.values.push_back(_parse_json(*cptr));
+            skip_ws(cptr);
+            if (**cptr == ',')
+                (*cptr)++;
+            skip_ws(cptr);
+        }
+        if (**cptr == ']')
+            (*cptr)++;
+    }
 
-	};
+    static json_t _parse_json(char *&cptr)
+    {
+        skip_ws(&cptr);
+        json_t root;
 
-	JSONNode JSONNode::ERROR = JSONNode("error", 'u', {});
+        if (*cptr == '"')
+        {
+            root.type = JSON_STRING;
+            std::string value;
+            _read_string(&cptr, value);
+            root.keys.push_back(value);
+        }
+        else if (*cptr == '-' || (*cptr >= '0' && *cptr <= '9'))
+        {
+            root.type = JSON_NUMBER;
+            std::string value;
+            _read_number(&cptr, value);
+            root.keys.push_back(value);
+        }
+        else if (*cptr == 't' && strncmp(cptr, "true", 4) == 0)
+        {
+            root.type = JSON_BOOL;
+            root.keys.emplace_back("true");
+            cptr += 4;
+        }
+        else if (*cptr == 'f' && strncmp(cptr, "false", 5) == 0)
+        {
+            root.type = JSON_BOOL;
+            root.keys.emplace_back("false");
+            cptr += 5;
+        }
+        else if (*cptr == 'n' && strncmp(cptr, "null", 4) == 0)
+        {
+            root.type = JSON_NULL;
+            root.keys.emplace_back("null");
+            cptr += 4;
+        }
+        else if (*cptr == '{')
+        {
+            _read_object(&cptr, root);
+        }
+        else if (*cptr == '[')
+        {
+            _read_array(&cptr, root);
+        }
+        else
+        {
+            root.type = JSON_ERROR;
+        }
+        return root;
+    }
 
-	void PrintJSONNode(const JSONNode& tree, int level = 0)
-	{
-		for (int i = 0; i < level; i++)
-			std::cout << "    ";
-		std::cout << "-" << tree._value << "( " << tree._type << " )" << std::endl;
+    inline json_t parse_json(const std::string &str)
+    {
+        char *cptr = const_cast<char *>(str.c_str());
+        return _parse_json(cptr);
+    }
 
-		for (JSONNode child : tree._children)
-			PrintJSONNode(child, level + 1);
-	}
+    inline json_t parse_json(const char *str)
+    {
+        char *cptr = const_cast<char *>(str);
+        return _parse_json(cptr);
+    }
 
-}
+    static std::string to_string(const json_t &json, bool compact = true, int indent = 2, int current_indent = 0)
+    {
+        std::ostringstream oss;
 
+        auto append_indent = [&](int level)
+        {
+            if (!compact)
+                oss << std::string(level, ' ');
+        };
 
+        switch (json.type)
+        {
+        case JSON_NULL:
+            oss << "null";
+            break;
+
+        case JSON_BOOL:
+        case JSON_NUMBER:
+        case JSON_STRING:
+            if (json.type == JSON_STRING)
+                oss << "\"" << json.keys[0] << "\"";
+            else
+                oss << json.keys[0];
+            break;
+
+        case JSON_ARRAY:
+            if (json.values.empty())
+            {
+                oss << "[]";
+                break;
+            }
+            oss << "[";
+            if (!compact)
+                oss << "\n";
+            for (size_t i = 0; i < json.values.size(); ++i)
+            {
+                append_indent(current_indent + indent);
+                oss << to_string(json.values[i], compact, indent, current_indent + indent);
+                if (i < json.values.size() - 1)
+                    oss << ",";
+                if (!compact)
+                    oss << "\n";
+            }
+            if (!compact)
+                append_indent(current_indent);
+            oss << "]";
+            break;
+
+        case JSON_OBJECT:
+            if (json.keys.empty())
+            {
+                oss << "{}";
+                break;
+            }
+            oss << "{";
+            if (!compact)
+                oss << "\n";
+            for (size_t i = 0; i < json.keys.size(); ++i)
+            {
+                append_indent(current_indent + indent);
+                oss << "\"" << json.keys[i] << "\": ";
+                oss << to_string(json.values[i], compact, indent, current_indent + indent);
+                if (i < json.keys.size() - 1)
+                    oss << ",";
+                if (!compact)
+                    oss << "\n";
+            }
+            if (!compact)
+                append_indent(current_indent);
+            oss << "}";
+            break;
+
+        default:
+            oss << "null";
+            break;
+        }
+
+        return oss.str();
+    }
+
+    json_t cteate_json_object()
+    {
+        json_t json;
+        json.type = JSON_OBJECT;
+        return json;
+    }
+
+    json_t create_json_array()
+    {
+        json_t json;
+        json.type = JSON_ARRAY;
+        return json;
+    }
+};
